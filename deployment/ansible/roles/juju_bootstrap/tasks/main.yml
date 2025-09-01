@@ -1,0 +1,31 @@
+---
+- name: Copy init script for OpenStack
+  get_url:
+    url: https://raw.githubusercontent.com/VikStoykov/StackLab/config-management/deployment/scripts/devstack_init.sh
+    dest: "/home/ubuntu/"
+
+- name: Install the snap
+  community.general.snap:
+    name:
+      - openstack
+
+- name: Execute script
+  ansible.builtin.shell: sudo /bin/bash juju_bootstrap.sh
+  register: script
+
+- debug: var=script.stdout_lines
+
+- name: Check if init script successfully deployed
+  stat:
+    path: /home/ubuntu/ready
+  register: file_data
+
+- name: Report if a 'ready' file exists
+  debug:
+    msg: "The init script successfully deployed."
+  when: file_data.stat.exists
+
+- name: Report if a file exists
+  fail:
+    msg: "The init script failed."
+  when: not file_data.stat.exists

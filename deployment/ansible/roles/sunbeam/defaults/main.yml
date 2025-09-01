@@ -1,0 +1,4 @@
+---
+# Default variables for sunbeam role
+sunbeam_roles: "control,compute,storage"
+sunbeam_accept_defaults: true

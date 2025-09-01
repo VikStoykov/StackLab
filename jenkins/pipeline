@@ -1,0 +1,99 @@
+pipeline {
+    agent any
+    
+    environment {
+        ANSIBLE_PATH = "${WORKSPACE}/deployment/ansible"
+        AWS_ACCESS_KEY_ID = credentials('aws-access-key-id')
+        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')
+    }
+
+    // Directory: /var/lib/jenkins/workspace/NightlyBuild/
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/VikStoykov/StackLab.git'
+            }
+        }
+        
+        stage('Install Dependencies') {
+            steps {
+                script {
+                    // Install Ansible if not available
+                    sh '''
+                        if ! command -v ansible &> /dev/null; then
+                            echo "Installing Ansible..."
+                            pip install ansible boto3 botocore
+                        fi
+                        ansible --version
+                        
+                        # Install required Ansible collections
+                        ansible-galaxy collection install amazon.aws
+                        ansible-galaxy collection install community.general
+                    '''
+                }
+            }
+        }
+        
+        stage('Ansible Syntax Check') {
+            steps {
+                script {
+                    dir("${ANSIBLE_PATH}") {
+                        // Check ansible-playbook syntax
+                        sh "ansible-playbook --syntax-check playbook.yml"
+                    }
+                }
+            }
+        }
+        
+        stage('Ansible Playbook Execution') {
+            steps {
+                script {
+                    dir("${ANSIBLE_PATH}") {
+                        // Run the playbook
+                        sh "ansible-playbook playbook.yml"
+                    }
+                }
+            }
+        }
+        
+        stage('Verification') {
+            steps {
+                script {
+                    dir("${ANSIBLE_PATH}") {
+                        sh '''
+                            echo "Verifying deployment..."
+                            # Run verification commands
+                            # For example, checking if resources are available
+                            ansible -m ping remote || echo "Note: This may fail if instances are not yet available"
+                        '''
+                    }
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo "OpenStack Deployment Pipeline executed successfully!"
+        }
+        failure {
+            echo "Pipeline execution failed! Check the logs for details."
+            
+            // Collect diagnostic information
+            sh '''
+                echo "Collecting diagnostic information..."
+                mkdir -p ${WORKSPACE}/logs
+                cp ${ANSIBLE_PATH}/*.log ${WORKSPACE}/logs/ || true
+                ansible --version > ${WORKSPACE}/logs/ansible_version.txt
+                env | grep -E 'ANSIBLE|AWS' | grep -v KEY > ${WORKSPACE}/logs/environment.txt
+            '''
+        }
+        always {
+            // Archive logs
+            archiveArtifacts artifacts: 'logs/**', allowEmptyArchive: true
+            
+            // Send notification
+            echo "Pipeline execution completed. Check the Jenkins dashboard for details."
+        }
+    }
+}

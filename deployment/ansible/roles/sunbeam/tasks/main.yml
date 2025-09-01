@@ -1,0 +1,21 @@
+---
+# Sunbeam cluster bootstrap tasks
+- name: Add ubuntu user to snap_daemon group
+  shell: usermod -a -G snap_daemon ubuntu
+  become: yes
+  args:
+    executable: /bin/bash
+
+- name: Run sunbeam cluster bootstrap
+  shell: >
+    sunbeam cluster bootstrap 
+    {% if sunbeam_accept_defaults %}--accept-defaults{% endif %} 
+    --role {{ sunbeam_roles }}
+  register: sunbeam_output
+  become: yes
+  args:
+    executable: /bin/bash
+
+- name: Display sunbeam bootstrap output
+  debug:
+    var: sunbeam_output.stdout_lines
